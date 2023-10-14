@@ -1,0 +1,706 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN" data-default-color-scheme=auto>
+
+
+
+<head>
+  <meta charset="UTF-8">
+  <link rel="apple-touch-icon" sizes="76x76" href="/img/fluid.png">
+  <link rel="icon" href="/img/fluid.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, shrink-to-fit=no">
+  <meta http-equiv="x-ua-compatible" content="ie=edge">
+  
+  <meta name="theme-color" content="#2f4154">
+  <meta name="author" content="ZY">
+  <meta name="keywords" content="">
+  
+    <meta name="description" content="很多时候使用chroot是为了在与主机隔离的环境中进行开发，而VSCode并没有支持chroot环境。于是参考一个 Issue [1]，我发现了一种较为优雅的使用VSCode连接chroot环境的方法。 总体来说，先使用schroot开启一个session，再配置ssh server进行chroot，从而使用VSCode的Romte SSH插件连接到chroot环境。 schroot 配置schr">
+<meta property="og:type" content="article">
+<meta property="og:title" content="优雅地使用VSCode连接chroot环境">
+<meta property="og:url" content="http://toneoesa.github.io/20231014/52d5df4677b9/index.html">
+<meta property="og:site_name" content="ZY的博客">
+<meta property="og:description" content="很多时候使用chroot是为了在与主机隔离的环境中进行开发，而VSCode并没有支持chroot环境。于是参考一个 Issue [1]，我发现了一种较为优雅的使用VSCode连接chroot环境的方法。 总体来说，先使用schroot开启一个session，再配置ssh server进行chroot，从而使用VSCode的Romte SSH插件连接到chroot环境。 schroot 配置schr">
+<meta property="og:locale" content="zh_CN">
+<meta property="article:published_time" content="2023-10-14T15:58:17.000Z">
+<meta property="article:modified_time" content="2023-10-14T19:16:36.871Z">
+<meta property="article:author" content="ZY">
+<meta name="twitter:card" content="summary_large_image">
+  
+  
+  
+  <title>优雅地使用VSCode连接chroot环境 - ZY的博客</title>
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/twitter-bootstrap/4.6.1/css/bootstrap.min.css" />
+
+
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
+
+
+
+<!-- 主题依赖的图标库，不要自行修改 -->
+<!-- Do not modify the link that theme dependent icons -->
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1749284_hj8rtnfg7um.css">
+
+
+
+<link rel="stylesheet" href="//at.alicdn.com/t/font_1736178_lbnruvf0jn.css">
+
+
+<link  rel="stylesheet" href="/css/main.css" />
+
+
+  <link id="highlight-css" rel="stylesheet" href="/css/highlight.css" />
+  
+    <link id="highlight-css-dark" rel="stylesheet" href="/css/highlight-dark.css" />
+  
+
+
+
+
+  <script id="fluid-configs">
+    var Fluid = window.Fluid || {};
+    Fluid.ctx = Object.assign({}, Fluid.ctx)
+    var CONFIG = {"hostname":"toneoesa.github.io","root":"/","version":"1.9.5-a","typing":{"enable":true,"typeSpeed":70,"cursorChar":"_","loop":false,"scope":[]},"anchorjs":{"enable":true,"element":"h1,h2,h3,h4,h5,h6","placement":"left","visible":"hover","icon":""},"progressbar":{"enable":true,"height_px":3,"color":"#29d","options":{"showSpinner":false,"trickleSpeed":100}},"code_language":{"enable":true,"default":"TEXT"},"copy_btn":true,"image_caption":{"enable":true},"image_zoom":{"enable":true,"img_url_replace":["",""]},"toc":{"enable":true,"placement":"right","headingSelector":"h1,h2,h3,h4,h5,h6","collapseDepth":0},"lazyload":{"enable":true,"loading_img":"/img/loading.gif","onlypost":false,"offset_factor":2},"web_analytics":{"enable":false,"follow_dnt":true,"baidu":null,"google":{"measurement_id":null},"tencent":{"sid":null,"cid":null},"woyaola":null,"cnzz":null,"leancloud":{"app_id":null,"app_key":null,"server_url":null,"path":"window.location.pathname","ignore_local":false}},"search_path":"/local-search.xml","include_content_in_search":true};
+
+    if (CONFIG.web_analytics.follow_dnt) {
+      var dntVal = navigator.doNotTrack || window.doNotTrack || navigator.msDoNotTrack;
+      Fluid.ctx.dnt = dntVal && (dntVal.startsWith('1') || dntVal.startsWith('yes') || dntVal.startsWith('on'));
+    }
+  </script>
+  <script  src="/js/utils.js" ></script>
+  <script  src="/js/color-schema.js" ></script>
+  
+
+
+  
+<meta name="generator" content="Hexo 6.3.0"></head>
+
+
+<body>
+  
+
+  <header>
+    
+
+<div class="header-inner" style="height: 70vh;">
+  <nav id="navbar" class="navbar fixed-top  navbar-expand-lg navbar-dark scrolling-navbar">
+  <div class="container">
+    <a class="navbar-brand" href="/">
+      <strong>ZY的博客</strong>
+    </a>
+
+    <button id="navbar-toggler-btn" class="navbar-toggler" type="button" data-toggle="collapse"
+            data-target="#navbarSupportedContent"
+            aria-controls="navbarSupportedContent" aria-expanded="false" aria-label="Toggle navigation">
+      <div class="animated-icon"><span></span><span></span><span></span></div>
+    </button>
+
+    <!-- Collapsible content -->
+    <div class="collapse navbar-collapse" id="navbarSupportedContent">
+      <ul class="navbar-nav ml-auto text-center">
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <i class="iconfont icon-home-fill"></i>
+                <span>首页</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/archives/">
+                <i class="iconfont icon-archive-fill"></i>
+                <span>归档</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/categories/">
+                <i class="iconfont icon-category-fill"></i>
+                <span>分类</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/tags/">
+                <i class="iconfont icon-tags-fill"></i>
+                <span>标签</span>
+              </a>
+            </li>
+          
+        
+          
+          
+          
+          
+            <li class="nav-item">
+              <a class="nav-link" href="/about/">
+                <i class="iconfont icon-user-fill"></i>
+                <span>关于</span>
+              </a>
+            </li>
+          
+        
+        
+          <li class="nav-item" id="search-btn">
+            <a class="nav-link" target="_self" href="javascript:;" data-toggle="modal" data-target="#modalSearch" aria-label="Search">
+              <i class="iconfont icon-search"></i>
+            </a>
+          </li>
+          
+        
+        
+          <li class="nav-item" id="color-toggle-btn">
+            <a class="nav-link" target="_self" href="javascript:;" aria-label="Color Toggle">
+              <i class="iconfont icon-dark" id="color-toggle-icon"></i>
+            </a>
+          </li>
+        
+      </ul>
+    </div>
+  </div>
+</nav>
+
+  
+
+<div id="banner" class="banner" parallax=true
+     style="background: url('/img/default.png') no-repeat center center; background-size: cover;">
+  <div class="full-bg-img">
+    <div class="mask flex-center" style="background-color: rgba(0, 0, 0, 0.3)">
+      <div class="banner-text text-center fade-in-up">
+        <div class="h2">
+          
+            <span id="subtitle" data-typed-text="优雅地使用VSCode连接chroot环境"></span>
+          
+        </div>
+
+        
+          
+  <div class="mt-3">
+    
+    
+      <span class="post-meta">
+        <i class="iconfont icon-date-fill" aria-hidden="true"></i>
+        <time datetime="2023-10-14 23:58" pubdate>
+          2023年10月14日 晚上
+        </time>
+      </span>
+    
+  </div>
+
+  <div class="mt-1">
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-chart"></i>
+        
+          3.1k 字
+        
+      </span>
+    
+
+    
+      <span class="post-meta mr-2">
+        <i class="iconfont icon-clock-fill"></i>
+        
+        
+        
+          26 分钟
+        
+      </span>
+    
+
+    
+    
+  </div>
+
+
+        
+      </div>
+
+      
+    </div>
+  </div>
+</div>
+
+</div>
+
+  </header>
+
+  <main>
+    
+      
+
+<div class="container-fluid nopadding-x">
+  <div class="row nomargin-x">
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+
+    </div>
+
+    <div class="col-lg-8 nopadding-x-md">
+      <div class="container nopadding-x-md" id="board-ctn">
+        <div id="board">
+          <article class="post-content mx-auto">
+            <h1 id="seo-header">优雅地使用VSCode连接chroot环境</h1>
+            
+            
+              <div class="markdown-body">
+                
+                <p>很多时候使用chroot是为了在与主机隔离的环境中进行开发，而VSCode并没有支持chroot环境。于是参考一个 Issue <sup id="fnref:1" class="footnote-ref"><a href="#fn:1" rel="footnote"><span class="hint--top hint--rounded" aria-label="Github Issue：https://github.com/microsoft/vscode-remote-release/issues/982">[1]</span></a></sup>，我发现了一种较为优雅的使用VSCode连接chroot环境的方法。</p>
+<p>总体来说，先使用schroot开启一个session，再配置ssh server进行chroot，从而使用VSCode的Romte SSH插件连接到chroot环境。</p>
+<h2 id="schroot-配置"><a href="#schroot-配置" class="headerlink" title="schroot 配置"></a>schroot 配置</h2><p>schroot可以用来简化chroot的操作，比如在chroot前自动进行挂载路径、拷贝文件等操作，也可以方便地在不同chroot环境中切换。</p>
+<p>Archlinux下schroot的配置文件在 <code>/etc/schroot</code>，其中 <code>schroot.conf</code>是主配置文件，<code>chroot.d</code>下放置各个chroot环境的配置，<code>setup.d</code> 下放置的了chroot启动时应执行的脚本，剩下的每个文件夹是一个”profile”，包含<code>copyfiles</code>、<code>fstab</code>、<code>nssdatabases</code> 三个文件，有时还有 <code>config</code> 文件。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs plain">/etc/schroot/<br>├── arch32/<br>├── buildd/<br>├── chroot.d/<br>├── default/<br>├── desktop/<br>├── minimal/<br>├── sbuild/<br>├── schroot.conf<br>└── setup.d/<br></code></pre></td></tr></table></figure>
+
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs plain">/etc/schroot/default/<br>├── copyfiles<br>├── fstab<br>└── nssdatabases<br></code></pre></td></tr></table></figure>
+
+<p>要配置schroot，应在 <code>chroot.d</code> 中新建一个文件，参考该目录下自带的示例，我的配置文件如下。</p>
+<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-section">[bookworm]</span><br><span class="hljs-attr">description</span>=Debian Bookworm<br><span class="hljs-attr">aliases</span>=deb<br><span class="hljs-attr">type</span>=directory<br><span class="hljs-attr">directory</span>=/srv/chroot/bookworm<br><span class="hljs-attr">users</span>=zy,zydeb<br><span class="hljs-attr">root-users</span>=zy,zydeb<br><span class="hljs-attr">profile</span>=my_profile<br><span class="hljs-attr">personality</span>=linux<br></code></pre></td></tr></table></figure>
+
+<ul>
+<li><code>directory</code> 是chroot目录，这目录下一般应该是一个Linux发行版的根目录，可以用 <a target="_blank" rel="noopener" href="https://wiki.debian.org/Debootstrap">debootstrap</a> 创建。</li>
+<li><code>users</code>, <code>root-users</code> 是主机上的用户，此处创建一个了额外的用户，是为了后面配置ssh。</li>
+<li><code>profile</code> 就是上面说到的 profile，可以根据需要选择一个或自己编写。</li>
+</ul>
+<p>现在就能进入chroot环境了。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm -u root -d /root<br></code></pre></td></tr></table></figure>
+
+<p>可以先用root用户登录进行一些配置，如更换镜像源、安装软件包、添加用户等。</p>
+<p>一般会添加主机上存在的用户，方便普通用户直接登录。配置好后，就能以普通用户身份登录了。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm<br></code></pre></td></tr></table></figure>
+
+<p>值得一提的是，不指定时，默认使用当前用户名和当前目录。所以当 chroot 环境中不存在同名用户或同名目录时，可能会看到警告甚至不能 chroot。</p>
+<h2 id="schroot-session"><a href="#schroot-session" class="headerlink" title="schroot session"></a>schroot session</h2><p>schroot 有一个 “session“ 功能，按 schroot 手册页<sup id="fnref:2" class="footnote-ref"><a href="#fn:2" rel="footnote"><span class="hint--top hint--rounded" aria-label="schroot-faq(7)： https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions?">[2]</span></a></sup>的说法，这可以从程序或脚本运行任意数量的命令，并在命令间保持状态，而且每次进入chroot都创建了一个 session，只是在退出时 session 关闭了而已。</p>
+<p>其实创建 session 的过程实际是创建了一个“挂载点”（是否还有其他操作并不清楚）。如果使用 schroot 进入 chroot 环境且不要退出，可以发现它在 <code>/run/schroot/mount</code> 下挂载了一些目录。以下是 mount 命令的输出（进行了一些删减）。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs plain">/dev/nvme0n1p5 on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4 type btrfs<br>proc on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/proc type proc<br>sys on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/sys type sysfs<br>dev on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/dev type devtmpfs<br>devpts on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/dev/pts type devpts<br>tmpfs on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/tmp type tmpfs<br></code></pre></td></tr></table></figure>
+
+<p>其中 <code>bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4</code> 是 schroot 随机生成的 session id，总是以配置的“chroot 名字”开头。当然，这也可以手动指定。</p>
+<p>在退出 chroot 环境后，上面的挂载就被自动取消了。</p>
+<p>而 session 功能，就是进行挂载后，可以多次进入 chroot 环境，退出后也不会取消挂载点，直到手动关闭 session，或者重启。</p>
+<p>于是就可以启动 session，从而得到一个固定的“挂载点”，以便后续 ssh 连接。</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm -b -n session_id<br></code></pre></td></tr></table></figure>
+
+<p>进入、关闭和恢复 session：</p>
+<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -r -c session_id<br>schroot -e -c session_id<br>schroot --recover-session -c session_id<br></code></pre></td></tr></table></figure>
+
+<p>在重启后挂载点会丢失，需要恢复 session （重新启动一个同名 session 似乎也可以，不清楚有无区别）。</p>
+<h2 id="ssh-server-配置"><a href="#ssh-server-配置" class="headerlink" title="ssh server 配置"></a>ssh server 配置</h2><p>在 <code>/etc/ssh/sshd_config</code> 末尾增加规则。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Match User zydeb<br>    ChrootDirectory /run/schroot/mount/session_id<br>    Subsystem sftp internal-sftp<br></code></pre></td></tr></table></figure>
+
+<p>参考的 Issue <sup id="fnref:1" class="footnote-ref"><a href="#fn:1" rel="footnote"><span class="hint--top hint--rounded" aria-label="Github Issue：https://github.com/microsoft/vscode-remote-release/issues/982">[1]</span></a></sup> 中使用了 <code>ForceCommand</code>。</p>
+<p>原本他的用法会报错，他说报错可以忽略，但我使用总会断开连接，于是改成下面这样。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Match User zydeb<br>   ForceCommand /usr/bin/schroot -u zydeb -r -c session_id -- $SSH_ORIGINAL_COMMAND<br>   Subsystem sftp internal-sftp<br></code></pre></td></tr></table></figure>
+
+<p>此外，Issue 中还有配置 authorzed_keys 文件来执行命令的方法，但 sftp 和 scp 可能没法使用。</p>
+<p>其中 <code>Subsystem sftp internal-sftp</code>，是为了能让 sftp 和 scp 正常运行，因为 Archlinux 和 Debian 中 sftp-server 的位置不同。</p>
+<h2 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h2><p>最后使用 VSCode 的 Remote SSH 连接 <code>zydeb@localhost</code> 即可。</p>
+<p>可以将其写进 <code>.ssh/config</code> 方便连接。</p>
+<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Host zydeb<br>    HostName localhost<br>    User zydeb<br></code></pre></td></tr></table></figure>
+<section class="footnotes"><h2>参考</h2><div class="footnote-list"><ol><li><span id="fn:1" class="footnote-text"><span>Github Issue：<a target="_blank" rel="noopener" href="https://github.com/microsoft/vscode-remote-release/issues/982">https://github.com/microsoft/vscode-remote-release/issues/982</a>
+<a href="#fnref:1" rev="footnote" class="footnote-backref"> ↩</a></span></span></li><li><span id="fn:2" class="footnote-text"><span>schroot-faq(7)： <a target="_blank" rel="noopener" href="https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions">https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions</a>?
+<a href="#fnref:2" rev="footnote" class="footnote-backref"> ↩</a></span></span></li></ol></div></section>
+                
+              </div>
+            
+            <hr/>
+            <div>
+              <div class="post-metas my-3">
+  
+  
+</div>
+
+
+              
+  
+
+  <div class="license-box my-3">
+    <div class="license-title">
+      <div>优雅地使用VSCode连接chroot环境</div>
+      <div>http://toneoesa.github.io/20231014/52d5df4677b9/</div>
+    </div>
+    <div class="license-meta">
+      
+        <div class="license-meta-item">
+          <div>作者</div>
+          <div>ZY</div>
+        </div>
+      
+      
+        <div class="license-meta-item license-meta-date">
+          <div>发布于</div>
+          <div>2023年10月14日</div>
+        </div>
+      
+      
+      
+        <div class="license-meta-item">
+          <div>许可协议</div>
+          <div>
+            
+              
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="BY - 署名">
+                    <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+            
+          </div>
+        </div>
+      
+    </div>
+    <div class="license-icon iconfont"></div>
+  </div>
+
+
+
+              
+                <div class="post-prevnext my-3">
+                  <article class="post-prev col-6">
+                    
+                    
+                  </article>
+                  <article class="post-next col-6">
+                    
+                    
+                      <a href="/20231014/44e18e18bcf7/" title="博客配置完成~">
+                        <span class="hidden-mobile">博客配置完成~</span>
+                        <span class="visible-mobile">下一篇</span>
+                        <i class="iconfont icon-arrowright"></i>
+                      </a>
+                    
+                  </article>
+                </div>
+              
+            </div>
+
+            
+  
+  
+    <article id="comments" lazyload>
+      
+    <div id="giscus" class="giscus"></div>
+    <script type="text/javascript">
+      Fluid.utils.loadComments('#giscus', function() {
+        var options = {"repo":"toneoesa/toneoesa.github.io","repo-id":"R_kgDOKgRsLQ","category":"Announcements","category-id":"DIC_kwDOKgRsLc4CaIUc","theme-light":"light","theme-dark":"dark","mapping":"pathname","reactions-enabled":"1","emit-metadata":"0","input-position":"top","lang":"zh-CN","strict":"1","theme":"preferred_color_scheme","loading":"lazy"};
+        var attributes = {};
+        for (let option in options) {
+          if (!option.startsWith('theme-')) {
+            var key = option.startsWith('data-') ? option : 'data-' + option;
+            attributes[key] = options[option];
+          }
+        }
+        var light = 'light';
+        var dark = 'dark';
+        window.GiscusThemeLight = light;
+        window.GiscusThemeDark = dark;
+        attributes['data-theme'] = document.documentElement.getAttribute('data-user-color-scheme') === 'dark' ? dark : light;
+        for (let attribute in attributes) {
+          var value = attributes[attribute];
+          if (value === undefined || value === null || value === '') {
+            delete attributes[attribute];
+          }
+        }
+        var s = document.createElement('script');
+        s.setAttribute('src', 'https://giscus.app/client.js');
+        s.setAttribute('crossorigin', 'anonymous');
+        for (let attribute in attributes) {
+          s.setAttribute(attribute, attributes[attribute]);
+        }
+        var ss = document.getElementsByTagName('script');
+        var e = ss.length > 0 ? ss[ss.length - 1] : document.head || document.documentElement;
+        e.parentNode.insertBefore(s, e.nextSibling);
+      });
+    </script>
+    <noscript>Please enable JavaScript to view the comments</noscript>
+
+
+    </article>
+  
+
+
+          </article>
+        </div>
+      </div>
+    </div>
+
+    <div class="side-col d-none d-lg-block col-lg-2">
+      
+  <aside class="sidebar" style="margin-left: -1rem">
+    <div id="toc">
+  <p class="toc-header">
+    <i class="iconfont icon-list"></i>
+    <span>目录</span>
+  </p>
+  <div class="toc-body" id="toc-body"></div>
+</div>
+
+
+
+  </aside>
+
+
+    </div>
+  </div>
+</div>
+
+
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+  
+
+
+
+
+
+
+
+    
+
+    
+      <a id="scroll-top-button" aria-label="TOP" href="#" role="button">
+        <i class="iconfont icon-arrowup" aria-hidden="true"></i>
+      </a>
+    
+
+    
+      <div class="modal fade" id="modalSearch" tabindex="-1" role="dialog" aria-labelledby="ModalLabel"
+     aria-hidden="true">
+  <div class="modal-dialog modal-dialog-scrollable modal-lg" role="document">
+    <div class="modal-content">
+      <div class="modal-header text-center">
+        <h4 class="modal-title w-100 font-weight-bold">搜索</h4>
+        <button type="button" id="local-search-close" class="close" data-dismiss="modal" aria-label="Close">
+          <span aria-hidden="true">&times;</span>
+        </button>
+      </div>
+      <div class="modal-body mx-3">
+        <div class="md-form mb-5">
+          <input type="text" id="local-search-input" class="form-control validate">
+          <label data-error="x" data-success="v" for="local-search-input">关键词</label>
+        </div>
+        <div class="list-group" id="local-search-result"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+    
+
+    
+  </main>
+
+  <footer>
+    <div class="footer-inner">
+  
+    <div class="footer-content">
+       <a href="https://hexo.io" target="_blank" rel="nofollow noopener"><span>Hexo</span></a> <i class="iconfont icon-love"></i> <a href="https://github.com/fluid-dev/hexo-theme-fluid" target="_blank" rel="nofollow noopener"><span>Fluid</span></a> 
+    </div>
+  
+  
+  
+  
+</div>
+
+  </footer>
+
+  <!-- Scripts -->
+  
+  <script  src="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.js" ></script>
+  <link  rel="stylesheet" href="https://lib.baomitu.com/nprogress/0.2.0/nprogress.min.css" />
+
+  <script>
+    NProgress.configure({"showSpinner":false,"trickleSpeed":100})
+    NProgress.start()
+    window.addEventListener('load', function() {
+      NProgress.done();
+    })
+  </script>
+
+
+<script  src="https://lib.baomitu.com/jquery/3.6.4/jquery.min.js" ></script>
+<script  src="https://lib.baomitu.com/twitter-bootstrap/4.6.1/js/bootstrap.min.js" ></script>
+<script  src="/js/events.js" ></script>
+<script  src="/js/plugins.js" ></script>
+
+
+  <script  src="https://lib.baomitu.com/typed.js/2.0.12/typed.min.js" ></script>
+  <script>
+    (function (window, document) {
+      var typing = Fluid.plugins.typing;
+      var subtitle = document.getElementById('subtitle');
+      if (!subtitle || !typing) {
+        return;
+      }
+      var text = subtitle.getAttribute('data-typed-text');
+      
+        typing(text);
+      
+    })(window, document);
+  </script>
+
+
+
+
+  
+    <script  src="/js/img-lazyload.js" ></script>
+  
+
+
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/tocbot/4.20.1/tocbot.min.js', function() {
+    var toc = jQuery('#toc');
+    if (toc.length === 0 || !window.tocbot) { return; }
+    var boardCtn = jQuery('#board-ctn');
+    var boardTop = boardCtn.offset().top;
+
+    window.tocbot.init(Object.assign({
+      tocSelector     : '#toc-body',
+      contentSelector : '.markdown-body',
+      linkClass       : 'tocbot-link',
+      activeLinkClass : 'tocbot-active-link',
+      listClass       : 'tocbot-list',
+      isCollapsedClass: 'tocbot-is-collapsed',
+      collapsibleClass: 'tocbot-is-collapsible',
+      scrollSmooth    : true,
+      includeTitleTags: true,
+      headingsOffset  : -boardTop,
+    }, CONFIG.toc));
+    if (toc.find('.toc-list-item').length > 0) {
+      toc.css('visibility', 'visible');
+    }
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('tocbot' in window) {
+        tocbot.refresh();
+        var toc = jQuery('#toc');
+        if (toc.length === 0 || !tocbot) {
+          return;
+        }
+        if (toc.find('.toc-list-item').length > 0) {
+          toc.css('visibility', 'visible');
+        }
+      }
+    });
+  });
+</script>
+
+
+  <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
+
+  <script>Fluid.plugins.codeWidget();</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/anchor-js/4.3.1/anchor.min.js', function() {
+    window.anchors.options = {
+      placement: CONFIG.anchorjs.placement,
+      visible  : CONFIG.anchorjs.visible
+    };
+    if (CONFIG.anchorjs.icon) {
+      window.anchors.options.icon = CONFIG.anchorjs.icon;
+    }
+    var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+    var res = [];
+    for (var item of el) {
+      res.push('.markdown-body > ' + item.trim());
+    }
+    if (CONFIG.anchorjs.placement === 'left') {
+      window.anchors.options.class = 'anchorjs-link-left';
+    }
+    window.anchors.add(res.join(', '));
+
+    Fluid.events.registerRefreshCallback(function() {
+      if ('anchors' in window) {
+        anchors.removeAll();
+        var el = (CONFIG.anchorjs.element || 'h1,h2,h3,h4,h5,h6').split(',');
+        var res = [];
+        for (var item of el) {
+          res.push('.markdown-body > ' + item.trim());
+        }
+        if (CONFIG.anchorjs.placement === 'left') {
+          anchors.options.class = 'anchorjs-link-left';
+        }
+        anchors.add(res.join(', '));
+      }
+    });
+  });
+</script>
+
+
+  
+<script>
+  Fluid.utils.createScript('https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.js', function() {
+    Fluid.plugins.fancyBox();
+  });
+</script>
+
+
+  <script>Fluid.plugins.imageCaption();</script>
+
+  <script  src="/js/local-search.js" ></script>
+
+
+
+
+
+<!-- 主题的启动项，将它保持在最底部 -->
+<!-- the boot of the theme, keep it at the bottom -->
+<script  src="/js/boot.js" ></script>
+
+
+  
+
+  <noscript>
+    <div class="noscript-warning">博客在允许 JavaScript 运行的环境下浏览效果更佳</div>
+  </noscript>
+</body>
+</html>

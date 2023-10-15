@@ -24,10 +24,12 @@
 <meta property="og:description" content="很多时候使用chroot是为了在与主机隔离的环境中进行开发，而VSCode并没有支持chroot环境。于是参考一个 Issue [1]，我发现了一种较为优雅的使用VSCode连接chroot环境的方法。 总体来说，先使用schroot开启一个session，再配置ssh server进行chroot，从而使用VSCode的Romte SSH插件连接到chroot环境。 schroot 配置schr">
 <meta property="og:locale" content="zh_CN">
 <meta property="article:published_time" content="2023-10-14T15:58:17.000Z">
-<meta property="article:modified_time" content="2023-10-14T19:16:36.871Z">
+<meta property="article:modified_time" content="2023-10-15T08:14:28.951Z">
 <meta property="article:author" content="ZY">
 <meta name="twitter:card" content="summary_large_image">
   
+  
+    <meta name="referrer" content="no-referrer-when-downgrade">
   
   
   <title>优雅地使用VSCode连接chroot环境 - ZY的博客</title>
@@ -39,6 +41,8 @@
   <link  rel="stylesheet" href="https://lib.baomitu.com/github-markdown-css/4.0.0/github-markdown.min.css" />
 
   <link  rel="stylesheet" href="https://lib.baomitu.com/hint.css/2.7.0/hint.min.css" />
+
+  <link  rel="stylesheet" href="https://lib.baomitu.com/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.css" />
 
   <link  rel="stylesheet" href="https://lib.baomitu.com/fancybox/3.5.7/jquery.fancybox.min.css" />
 
@@ -136,30 +140,6 @@
           
           
             <li class="nav-item">
-              <a class="nav-link" href="/categories/">
-                <i class="iconfont icon-category-fill"></i>
-                <span>分类</span>
-              </a>
-            </li>
-          
-        
-          
-          
-          
-          
-            <li class="nav-item">
-              <a class="nav-link" href="/tags/">
-                <i class="iconfont icon-tags-fill"></i>
-                <span>标签</span>
-              </a>
-            </li>
-          
-        
-          
-          
-          
-          
-            <li class="nav-item">
               <a class="nav-link" href="/about/">
                 <i class="iconfont icon-user-fill"></i>
                 <span>关于</span>
@@ -208,7 +188,7 @@
       <span class="post-meta">
         <i class="iconfont icon-date-fill" aria-hidden="true"></i>
         <time datetime="2023-10-14 23:58" pubdate>
-          2023年10月14日 晚上
+          2023年10月14日
         </time>
       </span>
     
@@ -219,7 +199,7 @@
       <span class="post-meta mr-2">
         <i class="iconfont icon-chart"></i>
         
-          3.1k 字
+          3.3k 字
         
       </span>
     
@@ -230,12 +210,20 @@
         
         
         
-          26 分钟
+          12 分钟
         
       </span>
     
 
     
+    
+      
+        <span id="busuanzi_container_page_pv" style="display: none">
+          <i class="iconfont icon-eye" aria-hidden="true"></i>
+          <span id="busuanzi_value_page_pv"></span> 次
+        </span>
+        
+      
     
   </div>
 
@@ -269,6 +257,14 @@
           <article class="post-content mx-auto">
             <h1 id="seo-header">优雅地使用VSCode连接chroot环境</h1>
             
+              <p class="note note-info">
+                
+                  
+                    本文最后更新于：2023年10月15日
+                  
+                
+              </p>
+            
             
               <div class="markdown-body">
                 
@@ -276,12 +272,32 @@
 <p>总体来说，先使用schroot开启一个session，再配置ssh server进行chroot，从而使用VSCode的Romte SSH插件连接到chroot环境。</p>
 <h2 id="schroot-配置"><a href="#schroot-配置" class="headerlink" title="schroot 配置"></a>schroot 配置</h2><p>schroot可以用来简化chroot的操作，比如在chroot前自动进行挂载路径、拷贝文件等操作，也可以方便地在不同chroot环境中切换。</p>
 <p>Archlinux下schroot的配置文件在 <code>/etc/schroot</code>，其中 <code>schroot.conf</code>是主配置文件，<code>chroot.d</code>下放置各个chroot环境的配置，<code>setup.d</code> 下放置的了chroot启动时应执行的脚本，剩下的每个文件夹是一个”profile”，包含<code>copyfiles</code>、<code>fstab</code>、<code>nssdatabases</code> 三个文件，有时还有 <code>config</code> 文件。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br><span class="line">10</span><br></pre></td><td class="code"><pre><code class="hljs plain">/etc/schroot/<br>├── arch32/<br>├── buildd/<br>├── chroot.d/<br>├── default/<br>├── desktop/<br>├── minimal/<br>├── sbuild/<br>├── schroot.conf<br>└── setup.d/<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">&#x2F;etc&#x2F;schroot&#x2F;
+├── arch32&#x2F;
+├── buildd&#x2F;
+├── chroot.d&#x2F;
+├── default&#x2F;
+├── desktop&#x2F;
+├── minimal&#x2F;
+├── sbuild&#x2F;
+├── schroot.conf
+└── setup.d&#x2F;<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
 
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br></pre></td><td class="code"><pre><code class="hljs plain">/etc/schroot/default/<br>├── copyfiles<br>├── fstab<br>└── nssdatabases<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">&#x2F;etc&#x2F;schroot&#x2F;default&#x2F;
+├── copyfiles
+├── fstab
+└── nssdatabases<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <p>要配置schroot，应在 <code>chroot.d</code> 中新建一个文件，参考该目录下自带的示例，我的配置文件如下。</p>
-<figure class="highlight ini"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br><span class="line">7</span><br><span class="line">8</span><br><span class="line">9</span><br></pre></td><td class="code"><pre><code class="hljs ini"><span class="hljs-section">[bookworm]</span><br><span class="hljs-attr">description</span>=Debian Bookworm<br><span class="hljs-attr">aliases</span>=deb<br><span class="hljs-attr">type</span>=directory<br><span class="hljs-attr">directory</span>=/srv/chroot/bookworm<br><span class="hljs-attr">users</span>=zy,zydeb<br><span class="hljs-attr">root-users</span>=zy,zydeb<br><span class="hljs-attr">profile</span>=my_profile<br><span class="hljs-attr">personality</span>=linux<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-ini" data-language="ini"><code class="language-ini"><span class="token section"><span class="token punctuation">[</span><span class="token section-name selector">bookworm</span><span class="token punctuation">]</span></span>
+<span class="token key attr-name">description</span><span class="token punctuation">=</span><span class="token value attr-value">Debian Bookworm</span>
+<span class="token key attr-name">aliases</span><span class="token punctuation">=</span><span class="token value attr-value">deb</span>
+<span class="token key attr-name">type</span><span class="token punctuation">=</span><span class="token value attr-value">directory</span>
+<span class="token key attr-name">directory</span><span class="token punctuation">=</span><span class="token value attr-value">/srv/chroot/bookworm</span>
+<span class="token key attr-name">users</span><span class="token punctuation">=</span><span class="token value attr-value">zy,zydeb</span>
+<span class="token key attr-name">root-users</span><span class="token punctuation">=</span><span class="token value attr-value">zy,zydeb</span>
+<span class="token key attr-name">profile</span><span class="token punctuation">=</span><span class="token value attr-value">my_profile</span>
+<span class="token key attr-name">personality</span><span class="token punctuation">=</span><span class="token value attr-value">linux</span><span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <ul>
 <li><code>directory</code> 是chroot目录，这目录下一般应该是一个Linux发行版的根目录，可以用 <a target="_blank" rel="noopener" href="https://wiki.debian.org/Debootstrap">debootstrap</a> 创建。</li>
@@ -289,39 +305,52 @@
 <li><code>profile</code> 就是上面说到的 profile，可以根据需要选择一个或自己编写。</li>
 </ul>
 <p>现在就能进入chroot环境了。</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm -u root -d /root<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">schroot <span class="token parameter variable">-c</span> bookworm <span class="token parameter variable">-u</span> root <span class="token parameter variable">-d</span> /root<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></div></figure>
 
 <p>可以先用root用户登录进行一些配置，如更换镜像源、安装软件包、添加用户等。</p>
 <p>一般会添加主机上存在的用户，方便普通用户直接登录。配置好后，就能以普通用户身份登录了。</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">schroot <span class="token parameter variable">-c</span> bookworm<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></div></figure>
 
 <p>值得一提的是，不指定时，默认使用当前用户名和当前目录。所以当 chroot 环境中不存在同名用户或同名目录时，可能会看到警告甚至不能 chroot。</p>
 <h2 id="schroot-session"><a href="#schroot-session" class="headerlink" title="schroot session"></a>schroot session</h2><p>schroot 有一个 “session“ 功能，按 schroot 手册页<sup id="fnref:2" class="footnote-ref"><a href="#fn:2" rel="footnote"><span class="hint--top hint--rounded" aria-label="schroot-faq(7)： https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions?">[2]</span></a></sup>的说法，这可以从程序或脚本运行任意数量的命令，并在命令间保持状态，而且每次进入chroot都创建了一个 session，只是在退出时 session 关闭了而已。</p>
 <p>其实创建 session 的过程实际是创建了一个“挂载点”（是否还有其他操作并不清楚）。如果使用 schroot 进入 chroot 环境且不要退出，可以发现它在 <code>/run/schroot/mount</code> 下挂载了一些目录。以下是 mount 命令的输出（进行了一些删减）。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br><span class="line">4</span><br><span class="line">5</span><br><span class="line">6</span><br></pre></td><td class="code"><pre><code class="hljs plain">/dev/nvme0n1p5 on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4 type btrfs<br>proc on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/proc type proc<br>sys on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/sys type sysfs<br>dev on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/dev type devtmpfs<br>devpts on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/dev/pts type devpts<br>tmpfs on /run/schroot/mount/bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4/tmp type tmpfs<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">&#x2F;dev&#x2F;nvme0n1p5 on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4 type btrfs
+proc on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4&#x2F;proc type proc
+sys on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4&#x2F;sys type sysfs
+dev on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4&#x2F;dev type devtmpfs
+devpts on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4&#x2F;dev&#x2F;pts type devpts
+tmpfs on &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4&#x2F;tmp type tmpfs<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <p>其中 <code>bookworm-50f49361-5cbd-420b-bb55-e6355dfeb1c4</code> 是 schroot 随机生成的 session id，总是以配置的“chroot 名字”开头。当然，这也可以手动指定。</p>
 <p>在退出 chroot 环境后，上面的挂载就被自动取消了。</p>
 <p>而 session 功能，就是进行挂载后，可以多次进入 chroot 环境，退出后也不会取消挂载点，直到手动关闭 session，或者重启。</p>
 <p>于是就可以启动 session，从而得到一个固定的“挂载点”，以便后续 ssh 连接。</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -c bookworm -b -n session_id<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">schroot <span class="token parameter variable">-c</span> bookworm <span class="token parameter variable">-b</span> <span class="token parameter variable">-n</span> session_id<span aria-hidden="true" class="line-numbers-rows"><span></span></span></code></pre></div></figure>
 
 <p>进入、关闭和恢复 session：</p>
-<figure class="highlight bash"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs bash">schroot -r -c session_id<br>schroot -e -c session_id<br>schroot --recover-session -c session_id<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-bash" data-language="bash"><code class="language-bash">schroot <span class="token parameter variable">-r</span> <span class="token parameter variable">-c</span> session_id
+schroot <span class="token parameter variable">-e</span> <span class="token parameter variable">-c</span> session_id
+schroot --recover-session <span class="token parameter variable">-c</span> session_id<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <p>在重启后挂载点会丢失，需要恢复 session （重新启动一个同名 session 似乎也可以，不清楚有无区别）。</p>
 <h2 id="ssh-server-配置"><a href="#ssh-server-配置" class="headerlink" title="ssh server 配置"></a>ssh server 配置</h2><p>在 <code>/etc/ssh/sshd_config</code> 末尾增加规则。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Match User zydeb<br>    ChrootDirectory /run/schroot/mount/session_id<br>    Subsystem sftp internal-sftp<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">Match User zydeb
+    ChrootDirectory &#x2F;run&#x2F;schroot&#x2F;mount&#x2F;session_id
+    Subsystem sftp internal-sftp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <p>参考的 Issue <sup id="fnref:1" class="footnote-ref"><a href="#fn:1" rel="footnote"><span class="hint--top hint--rounded" aria-label="Github Issue：https://github.com/microsoft/vscode-remote-release/issues/982">[1]</span></a></sup> 中使用了 <code>ForceCommand</code>。</p>
 <p>原本他的用法会报错，他说报错可以忽略，但我使用总会断开连接，于是改成下面这样。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Match User zydeb<br>   ForceCommand /usr/bin/schroot -u zydeb -r -c session_id -- $SSH_ORIGINAL_COMMAND<br>   Subsystem sftp internal-sftp<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">Match User zydeb
+   ForceCommand &#x2F;usr&#x2F;bin&#x2F;schroot -u zydeb -r -c session_id -- $SSH_ORIGINAL_COMMAND
+   Subsystem sftp internal-sftp<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></div></figure>
 
 <p>此外，Issue 中还有配置 authorzed_keys 文件来执行命令的方法，但 sftp 和 scp 可能没法使用。</p>
 <p>其中 <code>Subsystem sftp internal-sftp</code>，是为了能让 sftp 和 scp 正常运行，因为 Archlinux 和 Debian 中 sftp-server 的位置不同。</p>
 <h2 id="最后"><a href="#最后" class="headerlink" title="最后"></a>最后</h2><p>最后使用 VSCode 的 Remote SSH 连接 <code>zydeb@localhost</code> 即可。</p>
 <p>可以将其写进 <code>.ssh/config</code> 方便连接。</p>
-<figure class="highlight plaintext"><table><tr><td class="gutter"><pre><span class="line">1</span><br><span class="line">2</span><br><span class="line">3</span><br></pre></td><td class="code"><pre><code class="hljs plain">Host zydeb<br>    HostName localhost<br>    User zydeb<br></code></pre></td></tr></table></figure>
+<figure><div class="code-wrapper"><pre class="line-numbers language-none"><code class="language-none">Host zydeb
+    HostName localhost
+    User zydeb<span aria-hidden="true" class="line-numbers-rows"><span></span><span></span><span></span></span></code></pre></div></figure>
 <section class="footnotes"><h2>参考</h2><div class="footnote-list"><ol><li><span id="fn:1" class="footnote-text"><span>Github Issue：<a target="_blank" rel="noopener" href="https://github.com/microsoft/vscode-remote-release/issues/982">https://github.com/microsoft/vscode-remote-release/issues/982</a>
 <a href="#fnref:1" rev="footnote" class="footnote-backref"> ↩</a></span></span></li><li><span id="fn:2" class="footnote-text"><span>schroot-faq(7)： <a target="_blank" rel="noopener" href="https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions">https://manpages.debian.org/testing/schroot/schroot-faq.7.en.html#How_do_I_use_sessions</a>?
 <a href="#fnref:2" rev="footnote" class="footnote-backref"> ↩</a></span></span></li></ol></div></section>
@@ -365,9 +394,15 @@
             
               
               
-                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by/4.0/">
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/">
                   <span class="hint--top hint--rounded" aria-label="BY - 署名">
                     <i class="iconfont icon-by"></i>
+                  </span>
+                </a>
+              
+                <a class="print-no-link" target="_blank" href="https://creativecommons.org/licenses/by-sa/4.0/">
+                  <span class="hint--top hint--rounded" aria-label="SA - 相同方式共享">
+                    <i class="iconfont icon-sa"></i>
                   </span>
                 </a>
               
@@ -409,7 +444,7 @@
     <div id="giscus" class="giscus"></div>
     <script type="text/javascript">
       Fluid.utils.loadComments('#giscus', function() {
-        var options = {"repo":"toneoesa/toneoesa.github.io","repo-id":"R_kgDOKgRsLQ","category":"Announcements","category-id":"DIC_kwDOKgRsLc4CaIUc","theme-light":"light","theme-dark":"dark","mapping":"pathname","reactions-enabled":"1","emit-metadata":"0","input-position":"top","lang":"zh-CN","strict":"1","theme":"preferred_color_scheme","loading":"lazy"};
+        var options = {"repo":"toneoesa/toneoesa.github.io","repo-id":"R_kgDOKgRsLQ","category":"Announcements","category-id":"DIC_kwDOKgRsLc4CaIUc","theme-light":"light","theme-dark":"dark","mapping":"pathname","reactions-enabled":"1","emit-metadata":"0","input-position":"top","lang":"zh-CN","strict":"1","loading":"lazy"};
         var attributes = {};
         for (let option in options) {
           if (!option.startsWith('theme-')) {
@@ -633,6 +668,8 @@
 </script>
 
 
+  <script  src="https://lib.baomitu.com/prism/1.29.0/plugins/line-numbers/prism-line-numbers.min.js" ></script>
+
   <script src=https://lib.baomitu.com/clipboard.js/2.0.11/clipboard.min.js></script>
 
   <script>Fluid.plugins.codeWidget();</script>
@@ -687,6 +724,8 @@
   <script>Fluid.plugins.imageCaption();</script>
 
   <script  src="/js/local-search.js" ></script>
+
+  <script defer src="https://busuanzi.ibruce.info/busuanzi/2.3/busuanzi.pure.mini.js" ></script>
 
 
 
